@@ -10,10 +10,6 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
-    postgresql = {
-      source  = "cyrilgdn/postgresql"
-      version = "~> 1.22"
-    }
   }
 
   # Bucket/tabela criados manualmente uma única vez (bootstrap, fora do
