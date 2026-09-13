@@ -34,27 +34,8 @@ resource "aws_db_instance" "this" {
   }
 }
 
-# Um database lógico + um usuário de app por ambiente (homolog/prod), na
-# mesma instância — decisão Fase 0. O master user (acima) nunca é usado pela
-# app, só para provisionar isso aqui.
-resource "random_password" "app_user" {
-  for_each = toset(var.environments)
-
-  length  = 24
-  special = false
-}
-
-resource "postgresql_database" "this" {
-  for_each = toset(var.environments)
-
-  name  = "${var.db_name}_${each.key}"
-  owner = postgresql_role.app_user[each.key].name
-}
-
-resource "postgresql_role" "app_user" {
-  for_each = toset(var.environments)
-
-  name     = "${var.db_name}_${each.key}_app"
-  login    = true
-  password = random_password.app_user[each.key].result
-}
+# Os databases lógicos (oficina_homolog/oficina_prod) e usuários de app NÃO
+# são criados aqui: exigiriam conexão TCP direta na porta 5432, e o RDS é
+# `publicly_accessible = false` de propósito. Runners do GitHub Actions não
+# estão na VPC, então isso não pode rodar no CI deste repo — ver
+# `bootstrap-db/` (aplicado manualmente por quem tiver acesso à VPC).

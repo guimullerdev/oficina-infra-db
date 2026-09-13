@@ -4,12 +4,6 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "db_name" {
-  description = "Nome base do banco (prefixo dos databases lógicos oficina_homolog/oficina_prod)"
-  type        = string
-  default     = "oficina"
-}
-
 variable "db_master_username" {
   description = "Usuário master da instância RDS (não é o usuário usado pela app)"
   type        = string
@@ -38,10 +32,4 @@ variable "db_backup_retention_period" {
   description = "Dias de retenção de backup automático"
   type        = number
   default     = 7
-}
-
-variable "environments" {
-  description = "Databases lógicos + usuário de app por ambiente, na mesma instância RDS (decisão Fase 0: 1 conta, 1 RDS, 2 databases lógicos)"
-  type        = list(string)
-  default     = ["homolog", "prod"]
 }
