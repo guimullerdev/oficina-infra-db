@@ -29,7 +29,14 @@ variable "db_engine_version" {
 }
 
 variable "db_backup_retention_period" {
-  description = "Dias de retenção de backup automático"
+  description = <<-EOT
+    Dias de retenção de backup automático.
+
+    1, e não 7, porque contas no plano Free Tier da AWS rejeitam retenções
+    maiores (`FreeTierRestrictionError`). 1 mantém o backup diário ativo —
+    requisito do PDF — enquanto 0 o desligaria por completo. Numa conta
+    paga, subir para 7 é seguro.
+  EOT
   type        = number
-  default     = 7
+  default     = 1
 }
