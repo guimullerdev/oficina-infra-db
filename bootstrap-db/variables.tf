@@ -21,3 +21,16 @@ variable "environments" {
   type        = list(string)
   default     = ["homolog", "prod"]
 }
+
+variable "db_host_override" {
+  description = <<-EOT
+    Host/porta alternativos para alcançar o RDS, no formato "host:porta".
+
+    O RDS é privado, então este módulo só roda de dentro da VPC — ou através
+    de um túnel. Ao tunelar (kubectl port-forward, SSM port forwarding,
+    bastion), informe aqui o endereço local do túnel; vazio usa o endpoint
+    real vindo do remote state.
+  EOT
+  type        = string
+  default     = ""
+}
