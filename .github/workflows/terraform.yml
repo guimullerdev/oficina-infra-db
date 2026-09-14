@@ -21,9 +21,15 @@ env:
   TF_VERSION: "1.9.8"
 
 jobs:
+  # `fmt`, `init -backend=false` e `validate` não falam com a AWS, então
+  # rodam sempre e são o gate real do PR. Só `plan` precisa de credencial —
+  # enquanto a conta AWS não existir, esse passo é pulado explicitamente em
+  # vez de derrubar o job inteiro.
   plan:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      HAS_AWS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -31,37 +37,49 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init (sem backend)
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Aviso — plan pulado
+        if: env.HAS_AWS == 'false'
+        run: |
+          echo "::warning::Secrets de AWS não configurados neste repositório."
+          echo "::warning::fmt/validate rodaram; 'terraform plan' foi pulado."
+
       # AWS_SESSION_TOKEN só é necessário se a conta usada for um AWS
       # Academy Learner Lab (credenciais temporárias); com IAM user comum,
       # o secret fica vazio e a action ignora.
       - uses: aws-actions/configure-aws-credentials@v4
+        if: env.HAS_AWS == 'true'
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Terraform Init
-        run: terraform init -backend-config=backend.hcl
-
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
-
-      - name: Terraform Validate
-        run: terraform validate
+      - name: Terraform Init (com backend remoto)
+        if: env.HAS_AWS == 'true'
+        run: terraform init -reconfigure -backend-config=backend.hcl
 
       - name: Terraform Plan
         id: plan
+        if: env.HAS_AWS == 'true'
         run: terraform plan -no-color -input=false -out=tfplan
         continue-on-error: true
 
       - name: Render plan output
-        if: always()
+        if: env.HAS_AWS == 'true'
         run: |
           terraform show -no-color tfplan > plan.txt 2>&1 || echo "Falha ao gerar o plan — ver logs do job." > plan.txt
 
       - name: Comment plan on PR
-        if: always()
+        if: env.HAS_AWS == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -76,12 +94,14 @@ jobs:
             });
 
       - name: Fail job if plan failed
-        if: steps.plan.outcome == 'failure'
+        if: env.HAS_AWS == 'true' && steps.plan.outcome == 'failure'
         run: exit 1
 
   apply:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      HAS_AWS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -89,7 +109,14 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Aviso — apply pulado
+        if: env.HAS_AWS == 'false'
+        run: |
+          echo "::warning::Secrets de AWS não configurados; nada foi provisionado."
+          echo "::warning::Configure AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY para o apply rodar."
+
       - uses: aws-actions/configure-aws-credentials@v4
+        if: env.HAS_AWS == 'true'
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -97,7 +124,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
+        if: env.HAS_AWS == 'true'
         run: terraform init -backend-config=backend.hcl
 
       - name: Terraform Apply
+        if: env.HAS_AWS == 'true'
         run: terraform apply -auto-approve -input=false
