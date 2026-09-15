@@ -1,10 +1,33 @@
 # oficina-infra-db
 
-> Repositório 4 de 4 — ver `../plan.md` na raiz do projeto centralizado.
+> Repositório 4 de 4 — Tech Challenge Fase 3 (SOAT).
 
 Terraform do banco de dados gerenciado da Fase 3 do Tech Challenge (deriva de
 `TECH-CHALLENGE-FASE-ONE/infra/database.tf`, que rodava Postgres em pod no
 `kind`). Provisiona uma instância **RDS PostgreSQL** real na AWS.
+
+## Infraestrutura ativa
+
+| Recurso | Valor |
+|---|---|
+| Instância | `oficina-db` · PostgreSQL 16.4 · `db.t4g.micro` |
+| Região | `us-east-1`, na VPC default da conta |
+| Acesso público | **não** — `publicly_accessible = false` |
+| Databases | `oficina_prod` e `oficina_homolog` |
+| Retenção de backup | 1 dia (limite do Free Tier) |
+
+**Não há endpoint público a divulgar, e isso é intencional.** O banco só é
+alcançável de dentro da VPC: pelos pods do EKS e pela Lambda de autenticação.
+Quem quiser ver o dado passa pela API:
+
+- https://7eu2kz40xj.execute-api.us-east-1.amazonaws.com/prod
+- Dashboard de observabilidade: https://onenr.io/0qwykVVv1jn
+
+Para acesso administrativo direto (migrations manuais, inspeção), use um túnel
+SSM — foi assim que o `bootstrap-db/` criou os dois databases lógicos, já que
+os runners do GitHub Actions também estão fora da VPC.
+
+> Infraestrutura de curso, provisionada para a avaliação e destruída depois.
 
 ## Stack
 
