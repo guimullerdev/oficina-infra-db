@@ -1,10 +1,33 @@
 # oficina-infra-db
 
-> Repositório 4 de 4 — ver `../plan.md` na raiz do projeto centralizado.
+> Repositório 4 de 4 — Tech Challenge Fase 3 (SOAT).
 
 Terraform do banco de dados gerenciado da Fase 3 do Tech Challenge (deriva de
 `TECH-CHALLENGE-FASE-ONE/infra/database.tf`, que rodava Postgres em pod no
 `kind`). Provisiona uma instância **RDS PostgreSQL** real na AWS.
+
+## Infraestrutura ativa
+
+| Recurso | Valor |
+|---|---|
+| Instância | `oficina-db` · PostgreSQL 16.4 · `db.t4g.micro` |
+| Região | `us-east-1`, na VPC default da conta |
+| Acesso público | **não** — `publicly_accessible = false` |
+| Databases | `oficina_prod` e `oficina_homolog` |
+| Retenção de backup | 1 dia (limite do Free Tier) |
+
+**Não há endpoint público a divulgar, e isso é intencional.** O banco só é
+alcançável de dentro da VPC: pelos pods do EKS e pela Lambda de autenticação.
+Quem quiser ver o dado passa pela API:
+
+- https://7eu2kz40xj.execute-api.us-east-1.amazonaws.com/prod
+- Dashboard de observabilidade: https://onenr.io/0qwykVVv1jn
+
+Para acesso administrativo direto (migrations manuais, inspeção), use um túnel
+SSM — foi assim que o `bootstrap-db/` criou os dois databases lógicos, já que
+os runners do GitHub Actions também estão fora da VPC.
+
+> Infraestrutura de curso, provisionada para a avaliação e destruída depois.
 
 ## Stack
 
@@ -30,8 +53,10 @@ Duas raízes Terraform separadas, com states independentes:
   GitHub Actions não estão na VPC — manter o RDS público só para viabilizar
   isso não foi considerado um trade-off aceitável.
 
-Decisão de 1 conta AWS / 1 RDS / 2 databases lógicos por ambiente (em vez de
-2 instâncias físicas): Fase 0 do `plan.md` (custo).
+Decisão de 1 conta AWS / 1 RDS / 2 databases lógicos por ambiente, em vez de
+2 instâncias físicas: ADR 0002, no repo da aplicação. O motivo é custo —
+duplicar a instância dobraria a conta sem isolamento real necessário para um
+projeto de curso.
 
 Segredo da connection string: nunca em texto plano. Senhas via
 `random_password`, expostas só como output `sensitive = true`
@@ -45,7 +70,8 @@ Segredo da connection string: nunca em texto plano. Senhas via
   `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`) com
   permissão para RDS, EC2 (VPC/SG), e Secrets/State (S3+DynamoDB)
 - Bucket S3 + tabela DynamoDB do backend já criados (bootstrap manual único,
-  fora deste Terraform — ver Fase 0 do `plan.md`)
+  fora deste Terraform — é o problema do ovo e da galinha de versionar o
+  próprio backend do state)
 
 ## Como rodar (módulo raiz)
 
@@ -73,9 +99,11 @@ Requer os secrets do repositório: `AWS_ACCESS_KEY_ID`,
 
 ## Migrations Prisma
 
-Onde elas rodam contra este banco (pipeline deste repo, do repo 1, ou Job de
-Kubernetes no repo 3) ainda não foi decidido/documentado como ADR — ver Fase
-2 do `plan.md`.
+Onde elas rodam está decidido na **ADR 0005** (repo da aplicação): um Job de
+Kubernetes dentro do cluster, aplicado pelo pipeline da aplicação e aguardado
+antes do rollout. Aqui não, porque este repositório não conhece o schema; e
+não no start do pod, porque uma migration que falha derrubaria réplicas em
+CrashLoop.
 
 ## Diagrama
 
