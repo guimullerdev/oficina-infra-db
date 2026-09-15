@@ -53,8 +53,10 @@ Duas raízes Terraform separadas, com states independentes:
   GitHub Actions não estão na VPC — manter o RDS público só para viabilizar
   isso não foi considerado um trade-off aceitável.
 
-Decisão de 1 conta AWS / 1 RDS / 2 databases lógicos por ambiente (em vez de
-2 instâncias físicas): Fase 0 do `plan.md` (custo).
+Decisão de 1 conta AWS / 1 RDS / 2 databases lógicos por ambiente, em vez de
+2 instâncias físicas: ADR 0002, no repo da aplicação. O motivo é custo —
+duplicar a instância dobraria a conta sem isolamento real necessário para um
+projeto de curso.
 
 Segredo da connection string: nunca em texto plano. Senhas via
 `random_password`, expostas só como output `sensitive = true`
@@ -68,7 +70,8 @@ Segredo da connection string: nunca em texto plano. Senhas via
   `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`) com
   permissão para RDS, EC2 (VPC/SG), e Secrets/State (S3+DynamoDB)
 - Bucket S3 + tabela DynamoDB do backend já criados (bootstrap manual único,
-  fora deste Terraform — ver Fase 0 do `plan.md`)
+  fora deste Terraform — é o problema do ovo e da galinha de versionar o
+  próprio backend do state)
 
 ## Como rodar (módulo raiz)
 
@@ -96,9 +99,11 @@ Requer os secrets do repositório: `AWS_ACCESS_KEY_ID`,
 
 ## Migrations Prisma
 
-Onde elas rodam contra este banco (pipeline deste repo, do repo 1, ou Job de
-Kubernetes no repo 3) ainda não foi decidido/documentado como ADR — ver Fase
-2 do `plan.md`.
+Onde elas rodam está decidido na **ADR 0005** (repo da aplicação): um Job de
+Kubernetes dentro do cluster, aplicado pelo pipeline da aplicação e aguardado
+antes do rollout. Aqui não, porque este repositório não conhece o schema; e
+não no start do pod, porque uma migration que falha derrubaria réplicas em
+CrashLoop.
 
 ## Diagrama
 
