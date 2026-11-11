@@ -1,7 +1,7 @@
 # bootstrap-db
 
-Cria os databases lógicos (`oficina_homolog`, `oficina_prod`) e os usuários
-de app dentro do RDS provisionado pelo módulo raiz (`../`).
+Cria os databases lógicos (`oficina_os`, `oficina_billing`), um por serviço,
+e as roles de app dentro do RDS provisionado pelo módulo raiz (`../`).
 
 ## Por que isso não está no CI/CD do repo
 
@@ -31,7 +31,28 @@ terraform plan
 terraform apply
 ```
 
+O apply é manual, por túnel SSM. Usar a variável
+`db_host_override="localhost:<porta>"`, apontando para a porta local do túnel.
+
+## Isolamento
+
+- Cada serviço tem seu database e sua role de login: `oficina_os` /
+  `oficina_os_app` e `oficina_billing` / `oficina_billing_app`. A senha de cada
+  role é gerada por `random_password`, e a role é dona do seu database.
+- `CONNECT` e `TEMPORARY` são revogados de `PUBLIC` em cada database, e `ALL`
+  é revogado de `PUBLIC` no schema `public`.
+- Só a própria role conecta ao seu database, além do usuário master (que o
+  Terraform usa para configurar o schema). Ninguém de um serviço lê o banco do
+  outro.
+- O `permission denied` entre os bancos não é verificado neste PR: ele será
+  comprovado na janela de apply (Fase 4 do plano de infra).
+
+## Outputs
+
 ```bash
-terraform output -json database_urls | jq -r '.homolog'
-terraform output -json database_urls | jq -r '.prod'
+terraform output -json database_urls | jq -r '.os'
+terraform output -json database_urls | jq -r '.billing'
 ```
+
+Os valores são copiados à mão para os secrets `DATABASE_URL` do environment
+`prod` de cada serviço.
