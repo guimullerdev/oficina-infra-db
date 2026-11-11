@@ -4,21 +4,30 @@ on:
   pull_request:
     branches: [main]
     paths-ignore:
-      - "bootstrap-db/**"
       - "**.md"
   push:
     branches: [main]
-    paths-ignore:
-      - "bootstrap-db/**"
-      - "**.md"
+    # Allowlist: só arquivos da raiz do Terraform disparam apply (cria o RDS,
+    # que é pago). `*` não casa `/`, então bootstrap-db/, docs e o próprio
+    # workflow não aplicam nada.
+    paths:
+      - "*.tf"
+      - "backend.hcl"
+      - ".terraform.lock.hcl"
 
 permissions:
   contents: read
   pull-requests: write
 
+# Serializa as execuções: plan/apply disputam o lock do state e não devem
+# ser cancelados no meio, senão o lock pode ficar preso.
+concurrency:
+  group: terraform-${{ github.repository }}
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-east-1
-  TF_VERSION: "1.9.8"
+  TF_VERSION: "1.15.8"
 
 jobs:
   # `fmt`, `init -backend=false` e `validate` não falam com a AWS, então
@@ -46,6 +55,12 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Terraform Validate (bootstrap-db)
+        working-directory: bootstrap-db
+        run: |
+          terraform init -backend=false
+          terraform validate
+
       - name: Aviso — plan pulado
         if: env.HAS_AWS == 'false'
         run: |
@@ -70,7 +85,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         if: env.HAS_AWS == 'true'
-        run: terraform plan -no-color -input=false -out=tfplan
+        run: terraform plan -no-color -input=false -lock-timeout=5m -out=tfplan
         continue-on-error: true
 
       - name: Render plan output
