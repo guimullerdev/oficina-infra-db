@@ -13,7 +13,7 @@ Terraform do banco de dados gerenciado da Fase 3 do Tech Challenge (deriva de
 | Instância | `oficina-db` · PostgreSQL 16.4 · `db.t4g.micro` |
 | Região | `us-east-1`, na VPC default da conta |
 | Acesso público | **não** — `publicly_accessible = false` |
-| Databases | `oficina_prod` e `oficina_homolog` |
+| Databases | `oficina_os` e `oficina_billing` (um por serviço) |
 | Retenção de backup | 1 dia (limite do Free Tier) |
 
 **Não há endpoint público a divulgar, e isso é intencional.** O banco só é
@@ -24,7 +24,7 @@ Quem quiser ver o dado passa pela API:
 - Dashboard de observabilidade: https://onenr.io/0qwykVVv1jn
 
 Para acesso administrativo direto (migrations manuais, inspeção), use um túnel
-SSM — foi assim que o `bootstrap-db/` criou os dois databases lógicos, já que
+SSM — é assim que o `bootstrap-db/` cria os databases lógicos, já que
 os runners do GitHub Actions também estão fora da VPC.
 
 > Infraestrutura de curso, provisionada para a avaliação e destruída depois.
@@ -46,22 +46,25 @@ Duas raízes Terraform separadas, com states independentes:
   existe a partir da Fase 5), subnet group, Security Group liberando
   Postgres (5432) apenas para dentro do CIDR da VPC. `publicly_accessible =
   false`, sem exceção.
-- **`bootstrap-db/` (aplicado manualmente, ver seu README)** — cria os 2
-  databases lógicos (`oficina_homolog`, `oficina_prod`) e os usuários de app
-  dentro do RDS, via provider `cyrilgdn/postgresql`. **Não roda no CI**
+- **`bootstrap-db/` (aplicado manualmente, ver seu README)** — cria um
+  database lógico por serviço (`oficina_os`, `oficina_billing`) e a role de app
+  de cada um (`oficina_os_app`, `oficina_billing_app`) dentro do RDS, via
+  provider `cyrilgdn/postgresql`, com isolamento entre os databases. **Não roda no CI**
   porque exige conexão TCP direta na porta 5432, e os runners hospedados do
   GitHub Actions não estão na VPC — manter o RDS público só para viabilizar
   isso não foi considerado um trade-off aceitável.
 
-Decisão de 1 conta AWS / 1 RDS / 2 databases lógicos por ambiente, em vez de
-2 instâncias físicas: ADR 0002, no repo da aplicação. O motivo é custo —
+Decisão de 1 conta AWS / 1 RDS / 1 database lógico por serviço, em vez de
+1 instância física por serviço: ADR 0008 do `oficina-os-service`
+(`docs/adr/0008-um-rds-dois-bancos-logicos.md`). O motivo é custo —
 duplicar a instância dobraria a conta sem isolamento real necessário para um
 projeto de curso.
 
 Segredo da connection string: nunca em texto plano. Senhas via
 `random_password`, expostas só como output `sensitive = true`
-(`database_urls`, em `bootstrap-db/outputs.tf`) — consumido por
-`oficina-infra-k8s` via remote state (ver ADR 0001).
+(`database_urls`, em `bootstrap-db/outputs.tf`, com chaves `os` e `billing`).
+O valor é copiado à mão para os secrets `DATABASE_URL` do environment `prod`
+de cada serviço.
 
 ## Pré-requisitos
 
@@ -86,12 +89,13 @@ Para criar os databases/usuários de app depois disso, ver
 
 ## Pipeline (CI/CD)
 
-`.github/workflows/terraform.yml`, só para o módulo raiz (`bootstrap-db/` é
-sempre manual):
+`.github/workflows/terraform.yml`:
 
 - **Pull request para `main`**: `terraform fmt -check`, `validate`, `plan`
-  — o plano é comentado no PR automaticamente.
-- **Push em `main`** (pós-merge): `terraform apply -auto-approve`.
+  no módulo raiz — o plano é comentado no PR automaticamente. `fmt -check` e
+  `validate` também rodam em `bootstrap-db/`.
+- **Push em `main`** (pós-merge): `terraform apply -auto-approve`, só no
+  módulo raiz (`.`). `bootstrap-db/` nunca é aplicado pelo CI.
 
 Requer os secrets do repositório: `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY` e, se a conta usada for um AWS Academy Learner Lab
