@@ -11,15 +11,24 @@ variable "state_bucket" {
 }
 
 variable "db_name" {
-  description = "Nome base do banco (prefixo dos databases lógicos oficina_homolog/oficina_prod)"
+  description = "Prefixo dos databases (<db_name>_<serviço>) e das roles (<db_name>_<serviço>_app)"
   type        = string
   default     = "oficina"
 }
 
-variable "environments" {
-  description = "Databases lógicos + usuário de app por ambiente, na mesma instância RDS (decisão Fase 0: 1 conta, 1 RDS, 2 databases lógicos)"
+variable "services" {
+  description = "Serviços com database lógico + role dona própria na mesma instância RDS (ADR 0008: um RDS, dois bancos lógicos, zero grants cruzados)"
   type        = list(string)
-  default     = ["homolog", "prod"]
+  default     = ["os", "billing"]
+
+  validation {
+    condition = (
+      length(var.services) > 0 &&
+      length(distinct(var.services)) == length(var.services) &&
+      alltrue([for s in var.services : can(regex("^[a-z][a-z0-9]{1,20}$", s))])
+    )
+    error_message = "services: lista não vazia, sem repetição, cada item em minúsculas [a-z][a-z0-9] com 2 a 21 caracteres (vira parte de nome de database/role)."
+  }
 }
 
 variable "db_host_override" {

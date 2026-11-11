@@ -1,8 +1,8 @@
 output "database_urls" {
-  description = "DATABASE_URL por ambiente (homolog/prod), consumida por oficina-infra-k8s (Secret) e pela app — ver ADR 0001"
+  description = "DATABASE_URL por serviço (chaves os e billing), cada uma com a role dona do próprio database (ADR 0008)"
   value = {
-    for env in var.environments :
-    env => "postgresql://${postgresql_role.app_user[env].name}:${random_password.app_user[env].result}@${data.terraform_remote_state.root.outputs.db_address}:${data.terraform_remote_state.root.outputs.db_port}/${postgresql_database.this[env].name}?sslmode=require"
+    for svc in var.services :
+    svc => "postgresql://${postgresql_role.app_user[svc].name}:${random_password.app_user[svc].result}@${data.terraform_remote_state.root.outputs.db_address}:${data.terraform_remote_state.root.outputs.db_port}/${postgresql_database.this[svc].name}?sslmode=require"
   }
   sensitive = true
 }
