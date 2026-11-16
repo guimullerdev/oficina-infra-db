@@ -94,8 +94,11 @@ Para criar os databases/usuários de app depois disso, ver
 - **Pull request para `main`**: `terraform fmt -check`, `validate`, `plan`
   no módulo raiz — o plano é comentado no PR automaticamente. `fmt -check` e
   `validate` também rodam em `bootstrap-db/`.
+  Roda em todo PR, inclusive só de docs: o job `plan` é check obrigatório da
+  branch protection.
 - **Push em `main`** (pós-merge): `terraform apply -auto-approve`, só no
-  módulo raiz (`.`). `bootstrap-db/` nunca é aplicado pelo CI.
+  módulo raiz (`.`). `bootstrap-db/` nunca é aplicado pelo CI. Só dispara quando
+  o push muda `*.tf`, `backend.hcl` ou `.terraform.lock.hcl` na raiz.
 
 Requer os secrets do repositório: `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY` e, se a conta usada for um AWS Academy Learner Lab
