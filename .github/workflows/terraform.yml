@@ -1,10 +1,11 @@
 name: Terraform
 
 on:
+  # Sem filtro de path no pull_request: um PR só de docs ainda roda o `plan`,
+  # que é check obrigatório da branch protection. Com paths-ignore aqui o
+  # check ficaria "Expected — Waiting" e travaria o merge.
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**.md"
   push:
     branches: [main]
     # Allowlist: só arquivos da raiz do Terraform disparam apply (cria o RDS,
